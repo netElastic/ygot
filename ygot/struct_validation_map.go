@@ -25,6 +25,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"reflect"
 	"strings"
@@ -231,10 +232,41 @@ func EmitJSON(s ValidatedGoStruct, opts *EmitJSONConfig) (string, error) {
 	if opts != nil && opts.Indent != "" {
 		indent = opts.Indent
 	}
+	fmt.Println("EmitJson:s:", s, " v:", v)
 
 	j, err := json.MarshalIndent(v, "", indent)
 	if err != nil {
 		return "", fmt.Errorf("JSON marshalling error: %v", err)
+	}
+
+	return string(j), nil
+}
+
+// EmitXML takes an input ValidatedGoStruct (produced by ygen with validation enabled)
+// and serialises it to a XML string.
+func EmitXML(s ValidatedGoStruct, opts *EmitJSONConfig) (string, error) {
+	var vopts []ValidationOption
+	if opts != nil {
+		vopts = opts.ValidationOpts
+	}
+
+	if err := s.Validate(vopts...); err != nil {
+		return "", fmt.Errorf("validation err: %v", err)
+	}
+
+	v, err := makeJSON(s, opts)
+	if err != nil {
+		return "", err
+	}
+
+	indent := indentString
+	if opts != nil && opts.Indent != "" {
+		indent = opts.Indent
+	}
+	fmt.Println("EmitXML:s:", s, " v:", v)
+	j, err := xml.MarshalIndent(v, "", indent)
+	if err != nil {
+		return "", fmt.Errorf("XML marshalling error: %v", err)
 	}
 
 	return string(j), nil
@@ -266,6 +298,16 @@ func makeJSON(s GoStruct, opts *EmitJSONConfig) (map[string]interface{}, error) 
 	}
 	return v, nil
 }
+
+/*
+// makeXML renders the GoStruct s to xml string.
+func makeXML(s GoStruct, opts *EmitJSONConfig) (string, error) {
+	if v, err := ConstructXML(s, ""); err != nil {
+		return nil, fmt.Errorf("ContructXML error : %v", err)
+	}
+	return v, nil
+}
+*/
 
 // MergeStructJSON marshals the GoStruct ns to JSON according to the configuration, and
 // merges it with the existing JSON provided as a map[string]interface{}. The merged
