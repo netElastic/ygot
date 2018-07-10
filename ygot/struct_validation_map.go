@@ -25,7 +25,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
-	"encoding/xml"
 	"fmt"
 	"reflect"
 	"strings"
@@ -359,41 +358,10 @@ func EmitJSON(s ValidatedGoStruct, opts *EmitJSONConfig) (string, error) {
 	if opts != nil && opts.Indent != "" {
 		indent = opts.Indent
 	}
-	fmt.Println("EmitJson:s:", s, " v:", v)
 
 	j, err := json.MarshalIndent(v, "", indent)
 	if err != nil {
 		return "", fmt.Errorf("JSON marshalling error: %v", err)
-	}
-
-	return string(j), nil
-}
-
-// EmitXML takes an input ValidatedGoStruct (produced by ygen with validation enabled)
-// and serialises it to a XML string.
-func EmitXML(s ValidatedGoStruct, opts *EmitJSONConfig) (string, error) {
-	var vopts []ValidationOption
-	if opts != nil {
-		vopts = opts.ValidationOpts
-	}
-
-	if err := s.Validate(vopts...); err != nil {
-		return "", fmt.Errorf("validation err: %v", err)
-	}
-
-	v, err := makeJSON(s, opts)
-	if err != nil {
-		return "", err
-	}
-
-	indent := indentString
-	if opts != nil && opts.Indent != "" {
-		indent = opts.Indent
-	}
-	fmt.Println("EmitXML:s:", s, " v:", v)
-	j, err := xml.MarshalIndent(v, "", indent)
-	if err != nil {
-		return "", fmt.Errorf("XML marshalling error: %v", err)
 	}
 
 	return string(j), nil
