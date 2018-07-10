@@ -311,6 +311,7 @@ func (cg *YANGCodeGenerator) GenerateGoCode(yangFiles, includePaths []string) (*
 	// Store the returned schematree within the state for this code generation.
 	cg.state.schematree = mdef.schemaTree
 
+	//fmt.Println("GenerateGoCode: mdef.schemaTree:", mdef.schemaTree.Children(), " mdef.directoryEntries:", mdef.directoryEntries)
 	goStructs, errs := cg.state.buildDirectoryDefinitions(mdef.directoryEntries, cg.Config.CompressOCPaths, cg.Config.GenerateFakeRoot, golang, cg.Config.ExcludeState)
 	if errs != nil {
 		return nil, errs
@@ -330,6 +331,7 @@ func (cg *YANGCodeGenerator) GenerateGoCode(yangFiles, includePaths []string) (*
 	var orderedStructNames []string
 	structNameMap := make(map[string]*yangDirectory)
 	for _, goStruct := range goStructs {
+		//fmt.Println("goStruct: ", goStruct)
 		orderedStructNames = append(orderedStructNames, goStruct.name)
 		structNameMap[goStruct.name] = goStruct
 	}
@@ -346,6 +348,13 @@ func (cg *YANGCodeGenerator) GenerateGoCode(yangFiles, includePaths []string) (*
 			codegenErr = util.AppendErrs(codegenErr, errs)
 			continue
 		}
+		/*
+			fmt.Println("structNameMap[", structName, "] namespace:", structNameMap[structName].entry.Namespace(), " Name:", structNameMap[structName].entry.Name)
+			if _, ok := mdef.schemaTree.Children()[structNameMap[structName].entry.Name]; ok {
+				fmt.Println("GenerateGoCode, ", structNameMap[structName].entry.Name, " part of schematree")
+			} else {
+				fmt.Println("GenerateGoCOde, ", structNameMap[structName].entry.Name, " not a part of schematree")
+			}*/
 		structSnippets = append(structSnippets, structOut)
 
 		// Copy the contents of the enumTypeMap for the struct into the global
@@ -642,6 +651,7 @@ func processModules(yangFiles, includePaths []string, options yang.Options) ([]*
 	entries := []*yang.Entry{}
 	for _, modName := range modNames {
 		entries = append(entries, yang.ToEntry(mods[modName]))
+		fmt.Println("modName:", modName, " namespace:", yang.ToEntry(mods[modName]).Namespace().Name)
 	}
 	return entries, nil
 }

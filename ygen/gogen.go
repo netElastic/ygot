@@ -309,9 +309,11 @@ package {{ .PackageName }}
 
 import (
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"reflect"
-
+ 	"strconv"
+	"strings"
 	"{{ .GoOptions.YgotImportPath }}"
 
 {{- if .GenerateSchema }}
@@ -347,7 +349,6 @@ func init() {
 		panic("schema error: " +  err.Error())
 	}
 }
-
 // Unmarshal unmarshals data, which must be RFC7951 JSON format, into
 // destStruct, which must be non-nil and the correct GoStruct type. It returns
 // an error if the destStruct is not found in the schema or the data cannot be
@@ -383,7 +384,7 @@ type {{ .StructName }} struct {
 	{{- if $field.IsScalarField }}
 	{{ $field.Name }}	*{{ $field.Type }}	` + "`" + `{{ $field.Tags }}` + "`" + `
 	{{- else }}
-	{{ $field.Name }}	{{ $field.Type }}	` + "`" + `{{ $field.Tags }}` + "`" + `
+	{{ $field.Name }}	 {{ $field.Type }}	` + "`" + `{{ $field.Tags }}` + "`" + `
 	{{- end }}
 {{- end }}
 }
@@ -398,6 +399,72 @@ func (*{{ .StructName }}) IsYANGGoStruct() {}
 	// a definition of a YANG schema node, and generates the Go validation code
 	// from it.
 	goStructValidatorTemplate = `
+
+func (d *{{.StructName}}) XMLMarshal(ed string) string {
+	if ed == "" {
+		xml, err := xml.MarshalIndent(d, "", "")
+		if err == nil {
+			ed = string(xml)
+		}
+	}
+	x := ed
+	{{- range $idx, $field := .Fields }}
+		{{- if (contains (ftype $field.Type) "E_") }}
+		fmt.Println("x:", x)
+		{
+		posListBefore := strings.Split(string(x), "{{ getXmlStartTag $field.Tags }}")
+		fmt.Println("postlistbefore:", posListBefore)
+		if len(posListBefore)!=2{
+			return x
+			}
+		posListAfter := strings.Split(posListBefore[1], "{{ getXmlEndTag $field.Tags }}")
+		fmt.Println("poslistafter:", posListAfter)
+		n, _ := strconv.Atoi(posListAfter[0])
+		if len(posListAfter)<1{
+			return x
+			}
+		fmt.Println(" polistAfter[0]:", posListAfter[0], " n:", n)
+		posListAfter[0] = ΛEnum["{{$field.Type}}"][int64(n)].Name
+		fmt.Println("after subsituting poslistafter:", posListAfter)
+		x = posListBefore[0] + "{{ getXmlStartTag $field.Tags }}" + posListAfter[0] + "{{ getXmlEndTag $field.Tags }}" + posListAfter[1]
+		}
+		{{- else }}
+		{{- if eq $field.Name  "XMLName" }}
+		fmt.Println("xmlName skip xmlmarshal")
+		{{- else }}
+		{{- if $field.IsScalarField }}
+		fmt.Println("scalar type skip marshal")
+		{{- else }}
+		{{- if ne (mapType $field.Type) "" }}
+		fmt.Println("map type")
+		/*
+		for _,v := range d.{{$field.Name}} 
+		fmt.Println("type  {{mapType $field.Type}}- marshal")
+		x = (&{{(mapType  $field.Type) }}{}).XMLMarshal(x)
+		*/
+		{{- else }}
+		{{- if isArray $field.Type }}
+		{{- if ne (arrType $field.Type) "" }}
+		fmt.Println("array type")
+		/*
+		for _,v := range d.{{$field.Name}} 
+		fmt.Println("type  {{arrType $field.Type}}- marshal")
+		x = (&{{(arrType  $field.Type) }}{}).XMLMarshal(x)
+		*/
+		{{- end }}
+		{{- else }}
+		fmt.Println("type  {{ftype $field.Type}}- marshal")
+		x = (&{{(ftype  $field.Type) }}{}).XMLMarshal(x)
+		{{- end }}
+		{{- end }}
+		{{- end }}
+		{{- end }}
+		{{- end }}
+	{{- end }}
+	return x
+}
+
+
 // Validate validates s against the YANG schema corresponding to its type.
 func (s *{{ .StructName }}) Validate(opts ...ygot.ValidationOption) error {
 	if err := ytypes.Validate(SchemaTree["{{ .StructName }}"], s, opts...); err != nil {
@@ -940,6 +1007,82 @@ func (t *{{ .ParentReceiver }}) To_{{ .Name }}(i interface{}) ({{ .Name }}, erro
 		"inc": func(i int) int {
 			return i + 1
 		},
+		"getXmlTag": func(s string) string {
+			if !strings.Contains(s, "xml") {
+				return ""
+			}
+			return strings.Split(strings.Split(s, "xml:\"")[1], "\"")[0]
+		},
+		"getXmlStartTag": func(s string) string {
+			if !strings.Contains(s, "xml") {
+				return ""
+			}
+			return "<" + strings.Split(strings.Split(s, "xml:\"")[1], "\"")[0] + ">"
+		},
+		"getXmlEndTag": func(s string) string {
+			if !strings.Contains(s, "xml") {
+				return ""
+			}
+			return "</" + strings.Split(strings.Split(s, "xml:\"")[1], "\"")[0] + ">"
+		},
+		"isNative": func(s string) bool {
+			if v, ok := validGoBuiltinTypes[s]; ok {
+				return v
+			}
+			return false
+		},
+		"isArray": func(s string) bool {
+			return strings.Contains(s, "[]")
+		},
+		"arrType": func(s string) string {
+			if strings.Contains(s, "[]") {
+				fmt.Println(s, " contains []")
+				l := strings.Split(s, "[]")
+				fmt.Println("l after [] split:", l[1])
+				s = strings.Replace(l[1], "*", "", -1)
+				fmt.Println(" s after replacing * ", s)
+				if v, ok := validGoBuiltinTypes[s]; ok {
+					fmt.Println(s, " found in built-in type")
+					if v == false {
+						fmt.Println(s, " not build-in type")
+						return s
+					}
+				} else {
+					fmt.Println(s, " not build-in type")
+					return s
+				}
+			}
+			fmt.Println(s, " build-in type or nooooooooooooooooot array")
+			return ""
+		},
+		"mapType": func(s string) string {
+			if strings.Contains(s, "map") {
+				l := strings.Split(strings.Split(s, "map[")[1], "]")[1]
+				s = strings.Replace(l, "*", "", -1)
+				fmt.Println(" s after replacing * ", l)
+				if v, ok := validGoBuiltinTypes[s]; !ok {
+					if v == false {
+						return s
+					}
+				}
+			}
+			return ""
+		},
+		"ftype": func(s string) string {
+			s = strings.Replace(s, "*", "", -1)
+			/*starList := strings.Split(s, "*")
+			if len(starList) == 0 {
+				return s
+			}
+			if len(starList) == 1 {
+				return starList[0]
+			}
+			return starList[1]*/
+			return s
+		},
+		"contains": func(in, match string) bool {
+			return strings.Contains(in, match)
+		},
 		"toUpper": strings.ToUpper,
 		"indentLines": func(s string) string {
 			var b bytes.Buffer
@@ -1056,6 +1199,7 @@ func writeGoStruct(targetStruct *yangDirectory, goStructElements map[string]*yan
 		StructName: targetStruct.name,
 		YANGPath:   slicePathToString(targetStruct.path),
 	}
+	fmt.Println("writegostruct - structDef:", structDef)
 
 	// associatedListKeyStructs is a slice containing the key structures for any multi-keyed
 	// lists that are fields of the struct.
@@ -1222,7 +1366,7 @@ func writeGoStruct(targetStruct *yangDirectory, goStructElements map[string]*yan
 				// If the field's ListAttr is set, then this indicates that this
 				// element is a leaf-list. We represent a leaf-list in the output
 				// code using a slice of the type that the element was mapped to.
-				fType = fmt.Sprintf("[]%s", fType)
+				fType = fmt.Sprintf(" []%s", fType)
 				scalarField = false
 			case mtype.isEnumeratedValue == true, mtype.nativeType == "interface{}", mtype.nativeType == ygot.BinaryTypeName, mtype.nativeType == ygot.EmptyTypeName:
 				// If the value is an enumerated value, then we did not represent it
@@ -1267,6 +1411,18 @@ func writeGoStruct(targetStruct *yangDirectory, goStructElements map[string]*yan
 		for i, p := range schemaMapPaths {
 			tagBuf.WriteString(slicePathToString(p))
 
+			//			p[len(p)-1] = fmt.Sprintf("@%s", p[len(p)-1])
+			metadataTagBuf.WriteString(slicePathToString(p))
+
+			if i != len(schemaMapPaths)-1 {
+				tagBuf.WriteRune('|')
+				metadataTagBuf.WriteRune('|')
+			}
+		}
+		tagBuf.WriteByte('"')
+		tagBuf.WriteString(` xml:"`)
+		for i, p := range schemaMapPaths {
+			tagBuf.WriteString(slicePathToString(p))
 			p[len(p)-1] = fmt.Sprintf("@%s", p[len(p)-1])
 			metadataTagBuf.WriteString(slicePathToString(p))
 
@@ -1287,7 +1443,6 @@ func writeGoStruct(targetStruct *yangDirectory, goStructElements map[string]*yan
 		} else {
 			tagBuf.WriteString(fmt.Sprintf(` module:"%s"`, im))
 		}
-
 		fieldDef.Tags = tagBuf.String()
 
 		// Append the generated field definition to the set of fields of the struct.
@@ -1303,7 +1458,28 @@ func writeGoStruct(targetStruct *yangDirectory, goStructElements map[string]*yan
 			})
 		}
 	}
+	for _, goStruct := range goStructElements {
+		if goStruct.name == targetStruct.name {
+			fmt.Println(" found target struct in gostructs - ", goStruct.name)
+			if _, ok := state.schematree.Children()[goStruct.entry.Name]; ok {
+				//fmt.Println("writeGoStruct - GenerateGoCode, ", goStruct.entry.Name, " part of schematree", " namespace:", goStruct.entry.Namespace().Name)
+				fieldDef := &goStructField{
+					Name:          "XMLName",
+					Type:          "xml.Name",
+					IsScalarField: true,
+				}
+				var tagBuf bytes.Buffer
+				tagBuf.WriteString(fmt.Sprintf(` xml:"%s %s"`, goStruct.entry.Namespace().Name, goStruct.entry.Name))
+				tagBuf.WriteString(fmt.Sprintf(` path:"%s"`, goStruct.entry.Namespace().Name))
+				fieldDef.Tags = tagBuf.String()
 
+				structDef.Fields = append(structDef.Fields, fieldDef)
+			} else {
+				//fmt.Println("writeGoStruct - GenerateGoCOde, ", goStruct.entry.Name, " not a part of schematree")
+			}
+			break
+		}
+	}
 	// structBuf is used to store the code associated with the struct defined for
 	// the target YANG entity.
 	var structBuf bytes.Buffer

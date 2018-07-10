@@ -394,6 +394,16 @@ func makeJSON(s GoStruct, opts *EmitJSONConfig) (map[string]interface{}, error) 
 	return v, nil
 }
 
+/*
+// makeXML renders the GoStruct s to xml string.
+func makeXML(s GoStruct, opts *EmitJSONConfig) (string, error) {
+	if v, err := ConstructXML(s, ""); err != nil {
+		return nil, fmt.Errorf("ContructXML error : %v", err)
+	}
+	return v, nil
+}
+*/
+
 // MergeStructJSON marshals the GoStruct ns to JSON according to the configuration, and
 // merges it with the existing JSON provided as a map[string]interface{}. The merged
 // JSON output is returned.
