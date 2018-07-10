@@ -1411,7 +1411,7 @@ func writeGoStruct(targetStruct *yangDirectory, goStructElements map[string]*yan
 		for i, p := range schemaMapPaths {
 			tagBuf.WriteString(slicePathToString(p))
 
-			p[len(p)-1] = fmt.Sprintf("@%s", p[len(p)-1])
+			//			p[len(p)-1] = fmt.Sprintf("@%s", p[len(p)-1])
 			metadataTagBuf.WriteString(slicePathToString(p))
 
 			if i != len(schemaMapPaths)-1 {
@@ -1423,8 +1423,12 @@ func writeGoStruct(targetStruct *yangDirectory, goStructElements map[string]*yan
 		tagBuf.WriteString(` xml:"`)
 		for i, p := range schemaMapPaths {
 			tagBuf.WriteString(slicePathToString(p))
+			p[len(p)-1] = fmt.Sprintf("@%s", p[len(p)-1])
+			metadataTagBuf.WriteString(slicePathToString(p))
+
 			if i != len(schemaMapPaths)-1 {
 				tagBuf.WriteRune('|')
+				metadataTagBuf.WriteRune('|')
 			}
 		}
 		tagBuf.WriteByte('"')
