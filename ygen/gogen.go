@@ -410,48 +410,48 @@ func (d *{{.StructName}}) XMLMarshal(ed string) string {
 	x := ed
 	{{- range $idx, $field := .Fields }}
 		{{- if (contains (ftype $field.Type) "E_") }}
-		fmt.Println("x:", x)
-		{
-		posListBefore := strings.Split(string(x), "{{ getXmlStartTag $field.Tags }}")
-		fmt.Println("postlistbefore:", posListBefore)
-		if len(posListBefore)!=2{
-			return x
+			fmt.Println("x:", x)
+			{
+				posListBefore := strings.Split(string(x), "{{ getXmlStartTag $field.Tags }}")
+				fmt.Println("postlistbefore:", posListBefore)
+				if len(posListBefore)!=2{
+					return x
+				}
+			posListAfter := strings.Split(posListBefore[1], "{{ getXmlEndTag $field.Tags }}")
+			fmt.Println("poslistafter:", posListAfter)
+			n, _ := strconv.Atoi(posListAfter[0])
+			if len(posListAfter)<1{
+				return x
 			}
-		posListAfter := strings.Split(posListBefore[1], "{{ getXmlEndTag $field.Tags }}")
-		fmt.Println("poslistafter:", posListAfter)
-		n, _ := strconv.Atoi(posListAfter[0])
-		if len(posListAfter)<1{
-			return x
+			fmt.Println(" polistAfter[0]:", posListAfter[0], " n:", n)
+			posListAfter[0] = ΛEnum["{{$field.Type}}"][int64(n)].Name
+			fmt.Println("after subsituting poslistafter:", posListAfter)
+			x = posListBefore[0] + "{{ getXmlStartTag $field.Tags }}" + posListAfter[0] + "{{ getXmlEndTag $field.Tags }}" + posListAfter[1]
 			}
-		fmt.Println(" polistAfter[0]:", posListAfter[0], " n:", n)
-		posListAfter[0] = ΛEnum["{{$field.Type}}"][int64(n)].Name
-		fmt.Println("after subsituting poslistafter:", posListAfter)
-		x = posListBefore[0] + "{{ getXmlStartTag $field.Tags }}" + posListAfter[0] + "{{ getXmlEndTag $field.Tags }}" + posListAfter[1]
-		}
 		{{- else }}
 		{{- if eq $field.Name  "XMLName" }}
-		fmt.Println("xmlName skip xmlmarshal")
+			fmt.Println("xmlName skip xmlmarshal")
 		{{- else }}
 		{{- if $field.IsScalarField }}
-		fmt.Println("scalar type skip marshal")
+			fmt.Println("scalar type skip marshal")
 		{{- else }}
 		{{- if ne (mapType $field.Type) "" }}
-		fmt.Println("map type")
-		/*
-		for _,v := range d.{{$field.Name}} 
-		fmt.Println("type  {{mapType $field.Type}}- marshal")
-		x = (&{{(mapType  $field.Type) }}{}).XMLMarshal(x)
-		*/
+			fmt.Println("map type")
+			/*
+			for _,v := range d.{{$field.Name}} 
+			fmt.Println("type  {{mapType $field.Type}}- marshal")
+			x = (&{{(mapType  $field.Type) }}{}).XMLMarshal(x)
+			*/
 		{{- else }}
 		{{- if isArray $field.Type }}
-		{{- if ne (arrType $field.Type) "" }}
-		fmt.Println("array type")
-		/*
-		for _,v := range d.{{$field.Name}} 
-		fmt.Println("type  {{arrType $field.Type}}- marshal")
-		x = (&{{(arrType  $field.Type) }}{}).XMLMarshal(x)
-		*/
-		{{- end }}
+			{{- if ne (arrType $field.Type) "" }}
+				fmt.Println("array type")
+				/*
+				for _,v := range d.{{$field.Name}} 
+				fmt.Println("type  {{arrType $field.Type}}- marshal")
+				x = (&{{(arrType  $field.Type) }}{}).XMLMarshal(x)
+				*/
+			{{- end }}
 		{{- else }}
 		fmt.Println("type  {{ftype $field.Type}}- marshal")
 		x = (&{{(ftype  $field.Type) }}{}).XMLMarshal(x)
@@ -1288,6 +1288,7 @@ func writeGoStruct(targetStruct *yangDirectory, goStructElements map[string]*yan
 				// type to the slice of those that should have code generated for them.
 				associatedListKeyStructs = append(associatedListKeyStructs, multiKeyListKey)
 			}
+			fmt.Println("field  ", fName, " list fieldtype ", fieldType)
 
 		case field.IsContainer():
 			// This is a YANG container, so it is represented in code using a pointer to the struct type that
@@ -1301,9 +1302,10 @@ func writeGoStruct(targetStruct *yangDirectory, goStructElements map[string]*yan
 
 			fieldDef = &goStructField{
 				Name:            fieldName,
-				Type:            fmt.Sprintf("*%s", structName),
+				Type:            fmt.Sprintf(" *%s", structName),
 				IsYANGContainer: true,
 			}
+			fmt.Println("field  ", fName, " container fieldtype ", fieldDef.Type)
 		case field.IsLeaf() || field.IsLeafList():
 			// This is a leaf or leaf-list, so we map it into the Go type that corresponds to the
 			// YANG type that the leaf represents.
@@ -1312,6 +1314,7 @@ func writeGoStruct(targetStruct *yangDirectory, goStructElements map[string]*yan
 				errs = append(errs, err)
 				continue
 			}
+			fmt.Println("field  ", fName, " leaf/leaf-list mtype ", mtype)
 
 			// Set the default type to the mapped Go type, and note that it is a scalar field. This is
 			// used to determine fields that should be converted to pointers when outputting structs.
@@ -1377,6 +1380,7 @@ func writeGoStruct(targetStruct *yangDirectory, goStructElements map[string]*yan
 				// native type is a byte slice.
 				scalarField = false
 			}
+			fmt.Println("field  ", fName, " leaf/leaf-list mtype ", mtype, " at the end, scalarfield:", scalarField)
 
 			definedNameMap[fName].IsPtr = scalarField
 			if mtype.isEnumeratedValue {
