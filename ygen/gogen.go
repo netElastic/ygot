@@ -401,13 +401,14 @@ func (*{{ .StructName }}) IsYANGGoStruct() {}
 	goStructValidatorTemplate = `
 
 func (d *{{.StructName}}) Get() string {
+	x := ""
 {{- range $idx, $field := .Fields }}
     {{- if eq $field.Name "XMLName" }}
-		x := {{getXmlGetTag $field.Tags}}
+		x = {{getXmlGetTag $field.Tags}}
 		fmt.Println("get str:",x)
-		return x
 	{{- end }}
 {{- end }}
+	return x
 }
 func (d *{{.StructName}}) Edit(ed string) string {
 	if ed == "" {
@@ -449,7 +450,7 @@ func (d *{{.StructName}}) Edit(ed string) string {
 			/*
 			for _,v := range d.{{$field.Name}} 
 			fmt.Println("type  {{mapType $field.Type}}- marshal")
-			x = (&{{(mapType  $field.Type) }}{}).XMLMarshal(x)
+			x = (&{{(mapType  $field.Type) }}{}).Edit(x)
 			*/
 		{{- else }}
 		{{- if isArray $field.Type }}
@@ -458,12 +459,12 @@ func (d *{{.StructName}}) Edit(ed string) string {
 				/*
 				for _,v := range d.{{$field.Name}} 
 				fmt.Println("type  {{arrType $field.Type}}- marshal")
-				x = (&{{(arrType  $field.Type) }}{}).XMLMarshal(x)
+				x = (&{{(arrType  $field.Type) }}{}).Edit(x)
 				*/
 			{{- end }}
 		{{- else }}
 		fmt.Println("type  {{ftype $field.Type}}- marshal")
-		x = (&{{(ftype  $field.Type) }}{}).XMLMarshal(x)
+		x = (&{{(ftype  $field.Type) }}{}).Edit(x)
 		{{- end }}
 		{{- end }}
 		{{- end }}
@@ -1025,7 +1026,7 @@ func (t *{{ .ParentReceiver }}) To_{{ .Name }}(i interface{}) ({{ .Name }}, erro
 		"getXmlGetTag": func(s string) string {
 			x := ""
 			if strings.Contains(s, "xml") {
-				x = "`<get><filter type="xpath" select=\"/" + strings.Split(strings.Split(s, "xml:\"")[1], "\"")[0] + "`\"></filter></get>`"
+				x = "`<get><filter type=\"xpath\" select=\"/" + strings.Split(strings.Split(s, "xml:\"")[1], " ")[1] + "></filter></get>`"
 			}
 			return x
 		},
@@ -1052,30 +1053,25 @@ func (t *{{ .ParentReceiver }}) To_{{ .Name }}(i interface{}) ({{ .Name }}, erro
 		},
 		"arrType": func(s string) string {
 			if strings.Contains(s, "[]") {
-				fmt.Println(s, " contains []")
 				l := strings.Split(s, "[]")
-				fmt.Println("l after [] split:", l[1])
 				s = strings.Replace(l[1], "*", "", -1)
-				fmt.Println(" s after replacing * ", s)
 				if v, ok := validGoBuiltinTypes[s]; ok {
-					fmt.Println(s, " found in built-in type")
 					if v == false {
-						fmt.Println(s, " not build-in type")
+						//fmt.Println(s, " not build-in type")
 						return s
 					}
 				} else {
-					fmt.Println(s, " not build-in type")
+					//fmt.Println(s, " not build-in type")
 					return s
 				}
 			}
-			fmt.Println(s, " build-in type or nooooooooooooooooot array")
+			//fmt.Println(s, " build-in type or nooooooooooooooooot array")
 			return ""
 		},
 		"mapType": func(s string) string {
 			if strings.Contains(s, "map") {
 				l := strings.Split(strings.Split(s, "map[")[1], "]")[1]
 				s = strings.Replace(l, "*", "", -1)
-				fmt.Println(" s after replacing * ", l)
 				if v, ok := validGoBuiltinTypes[s]; !ok {
 					if v == false {
 						return s
@@ -1215,7 +1211,7 @@ func writeGoStruct(targetStruct *yangDirectory, goStructElements map[string]*yan
 		StructName: targetStruct.name,
 		YANGPath:   slicePathToString(targetStruct.path),
 	}
-	fmt.Println("writegostruct - structDef:", structDef)
+	//fmt.Println("writegostruct - structDef:", structDef)
 
 	// associatedListKeyStructs is a slice containing the key structures for any multi-keyed
 	// lists that are fields of the struct.
@@ -1304,7 +1300,7 @@ func writeGoStruct(targetStruct *yangDirectory, goStructElements map[string]*yan
 				// type to the slice of those that should have code generated for them.
 				associatedListKeyStructs = append(associatedListKeyStructs, multiKeyListKey)
 			}
-			fmt.Println("field  ", fName, " list fieldtype ", fieldType)
+			//fmt.Println("field  ", fName, " list fieldtype ", fieldType)
 
 		case field.IsContainer():
 			// This is a YANG container, so it is represented in code using a pointer to the struct type that
@@ -1321,7 +1317,7 @@ func writeGoStruct(targetStruct *yangDirectory, goStructElements map[string]*yan
 				Type:            fmt.Sprintf(" *%s", structName),
 				IsYANGContainer: true,
 			}
-			fmt.Println("field  ", fName, " container fieldtype ", fieldDef.Type)
+			//fmt.Println("field  ", fName, " container fieldtype ", fieldDef.Type)
 		case field.IsLeaf() || field.IsLeafList():
 			// This is a leaf or leaf-list, so we map it into the Go type that corresponds to the
 			// YANG type that the leaf represents.
@@ -1330,7 +1326,7 @@ func writeGoStruct(targetStruct *yangDirectory, goStructElements map[string]*yan
 				errs = append(errs, err)
 				continue
 			}
-			fmt.Println("field  ", fName, " leaf/leaf-list mtype ", mtype)
+			//fmt.Println("field  ", fName, " leaf/leaf-list mtype ", mtype)
 
 			// Set the default type to the mapped Go type, and note that it is a scalar field. This is
 			// used to determine fields that should be converted to pointers when outputting structs.
@@ -1396,7 +1392,7 @@ func writeGoStruct(targetStruct *yangDirectory, goStructElements map[string]*yan
 				// native type is a byte slice.
 				scalarField = false
 			}
-			fmt.Println("field  ", fName, " leaf/leaf-list mtype ", mtype, " at the end, scalarfield:", scalarField)
+			//fmt.Println("field  ", fName, " leaf/leaf-list mtype ", mtype, " at the end, scalarfield:", scalarField)
 
 			definedNameMap[fName].IsPtr = scalarField
 			if mtype.isEnumeratedValue {
@@ -1480,7 +1476,7 @@ func writeGoStruct(targetStruct *yangDirectory, goStructElements map[string]*yan
 	}
 	for _, goStruct := range goStructElements {
 		if goStruct.name == targetStruct.name {
-			fmt.Println(" found target struct in gostructs - ", goStruct.name)
+			//fmt.Println(" found target struct in gostructs - ", goStruct.name)
 			if _, ok := state.schematree.Children()[goStruct.entry.Name]; ok {
 				//fmt.Println("writeGoStruct - GenerateGoCode, ", goStruct.entry.Name, " part of schematree", " namespace:", goStruct.entry.Namespace().Name)
 				fieldDef := &goStructField{
