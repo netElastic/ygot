@@ -400,7 +400,16 @@ func (*{{ .StructName }}) IsYANGGoStruct() {}
 	// from it.
 	goStructValidatorTemplate = `
 
-func (d *{{.StructName}}) XMLMarshal(ed string) string {
+func (d *{{.StructName}}) Get() string {
+{{- range $idx, $field := .Fields }}
+    {{- if eq $field.Name "XMLName" }}
+		x := {{getXmlGetTag $field.Tags}}
+		fmt.Println("get str:",x)
+		return x
+	{{- end }}
+{{- end }}
+}
+func (d *{{.StructName}}) Edit(ed string) string {
 	if ed == "" {
 		xml, err := xml.MarshalIndent(d, "", "")
 		if err == nil {
@@ -1012,6 +1021,13 @@ func (t *{{ .ParentReceiver }}) To_{{ .Name }}(i interface{}) ({{ .Name }}, erro
 				return ""
 			}
 			return strings.Split(strings.Split(s, "xml:\"")[1], "\"")[0]
+		},
+		"getXmlGetTag": func(s string) string {
+			x := ""
+			if strings.Contains(s, "xml") {
+				x = "`<get><filter type="xpath" select=\"/" + strings.Split(strings.Split(s, "xml:\"")[1], "\"")[0] + "`\"></filter></get>`"
+			}
+			return x
 		},
 		"getXmlStartTag": func(s string) string {
 			if !strings.Contains(s, "xml") {
