@@ -350,6 +350,30 @@ func init() {
 		panic("schema error: " +  err.Error())
 	}
 }
+func GetStringPointer(i string) *string {
+	if i == "" {
+		return nil
+	}
+	return &i
+}
+
+func GetUint16Pointer(i string) *uint16 {
+	if i == "" {
+		return nil
+	}
+	o, _ := strconv.Atoi(i)
+	on := uint16(o)
+	return &on
+}
+func GetUint32Pointer(i string) *uint32 {
+	if i == "" {
+		return nil
+	}
+	o, _ := strconv.Atoi(i)
+	on := uint32(o)
+	return &on
+}
+
 // Unmarshal unmarshals data, which must be RFC7951 JSON format, into
 // destStruct, which must be non-nil and the correct GoStruct type. It returns
 // an error if the destStruct is not found in the schema or the data cannot be
@@ -507,25 +531,15 @@ func (d *{{.StructName}}) Edit(ed string) string {
 		{{- if eq $field.Name  "XMLName" }}
 			//fmt.Println("xmlName skip xmlmarshal")
 		{{- else }}
-		{{- if $field.IsScalarField }}
+		{{- if or (eq $field.Type "YANGEmpty") $field.IsScalarField }}
 			//fmt.Println("scalar type skip marshal")
 		{{- else }}
 		{{- if ne (mapType $field.Type) "" }}
 			//fmt.Println("map type")
-			/*
-			for _,v := range d.{{$field.Name}} 
-			fmt.Println("type  {{mapType $field.Type}}- marshal")
-			x = (&{{(mapType  $field.Type) }}{}).Edit(x)
-			*/
 		{{- else }}
 		{{- if isArray $field.Type }}
 			{{- if ne (arrType $field.Type) "" }}
 				//fmt.Println("array type")
-				/*
-				for _,v := range d.{{$field.Name}} 
-				//fmt.Println("type  {{arrType $field.Type}}- marshal")
-				x = (&{{(arrType  $field.Type) }}{}).Edit(x)
-				*/
 			{{- end }}
 		{{- else }}
 		//fmt.Println("type  {{ftype $field.Type}}- marshal")
