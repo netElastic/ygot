@@ -532,7 +532,15 @@ func (d *{{.StructName}}) Edit(ed string) string {
 			//fmt.Println("xmlName skip xmlmarshal")
 		{{- else }}
 		{{- if or (eq $field.Type "YANGEmpty") $field.IsScalarField }}
-			//fmt.Println("scalar type skip marshal")
+			{{- if (eq $field.Type "YANGEmpty") }}
+			fmt.Println("{{ $field.Name }} Yangempty type skip marshal")
+		if strings.Contains(x, "{{ getXmlStartTag $field.Tags }}false{{ getXmlEndTag $field.Tags }}") {
+			fmt.Println("contains {{ getXmlStartTag $field.Tags }}false{{ getXmlEndTag $field.Tags }}")
+		x = strings.Replace(x, "{{ getXmlStartTag $field.Tags }}false{{ getXmlEndTag $field.Tags }}", "", -1)
+		} else {
+		x = strings.Replace(x, "{{ getXmlStartTag $field.Tags }}true{{ getXmlEndTag $field.Tags }}", "{{ getXmlStartTag $field.Tags }}{{ getXmlEndTag $field.Tags }}", -1)
+		}
+			{{- end}}
 		{{- else }}
 		{{- if ne (mapType $field.Type) "" }}
 			//fmt.Println("map type")
