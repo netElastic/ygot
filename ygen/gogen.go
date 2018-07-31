@@ -48,7 +48,7 @@ const (
 	DefaultGoyangImportPath string = "github.com/openconfig/goyang/pkg/yang"
 	// DefaultAnnotationPrefix is the default string that is used to prefix the name
 	// of metadata fields in the output Go structs.
-	DefaultAnnotationPrefix string = "Λ"
+	DefaultAnnotationPrefix string = ""
 	// annotationFieldType defines the type that should be used for the
 	// annotation/metadata fields within each struct when they are generated.
 	annotationFieldType string = "[]ygot.Annotation"
@@ -314,6 +314,7 @@ import (
 	"reflect"
  	"strconv"
 	"strings"
+	"html"
 	"{{ .GoOptions.YgotImportPath }}"
 
 {{- if .GenerateSchema }}
@@ -349,6 +350,30 @@ func init() {
 		panic("schema error: " +  err.Error())
 	}
 }
+func GetStringPointer(i string) *string {
+	if i == "" {
+		return nil
+	}
+	return &i
+}
+
+func GetUint16Pointer(i string) *uint16 {
+	if i == "" {
+		return nil
+	}
+	o, _ := strconv.Atoi(i)
+	on := uint16(o)
+	return &on
+}
+func GetUint32Pointer(i string) *uint32 {
+	if i == "" {
+		return nil
+	}
+	o, _ := strconv.Atoi(i)
+	on := uint32(o)
+	return &on
+}
+
 // Unmarshal unmarshals data, which must be RFC7951 JSON format, into
 // destStruct, which must be non-nil and the correct GoStruct type. It returns
 // an error if the destStruct is not found in the schema or the data cannot be
@@ -379,12 +404,74 @@ func Unmarshal(data []byte, destStruct ygot.GoStruct, opts ...ytypes.UnmarshalOp
 	// structs; and containers are mapped into structs.
 	goStructTemplate = `
 // {{ .StructName }} represents the {{ .YANGPath }} YANG schema element.
+{{ $structName := .StructName }}
+{{- range $idx, $field := .Fields }}
+	{{ $keyType := mapKeyType $field.Type }}
+	{{ $valType := mapValueType $field.Type }}
+	{{- if ne $keyType "" }}
+type {{$structName}}_{{$field.Name}}Map {{$field.Type}}
+
+func (s {{$structName}}_{{$field.Name}}Map)  MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	if s == nil || len(s)==0 {
+		return nil
+	}
+	e.EncodeToken(start)
+	for k, elem := range s {
+	{{- if eq (isNative $valType ) false }}
+		elemKey := ""
+		_,err := (&{{ $valType }}{}).ΛListKeyMap()
+		//fmt.Println("ΛListKeyMap err:",err)
+		if err != nil && strings.Contains(err.Error(), "nil value for key") {
+			keyList := strings.Split(err.Error(), "nil value for key")
+			elemKey = strings.ToLower(strings.Trim(keyList[1], " "))
+			//fmt.Println("keyList:", keyList, " elemKey:", elemKey)
+		}
+		t := xml.StartElement{Name: xml.Name{"", elemKey}}
+		//fmt.Println("t:", t)
+		e.EncodeToken(t)
+		{{- if eq (isNative $keyType) false }}
+			fmt.Println("non-native key ",k)
+		{{- else }}
+			{{- if eq $keyType "string" }}
+			e.EncodeToken(xml.CharData(k))
+			{{- else if or eq $keyType "int8" eq $keyType "int" eq $keyType "int16" eq $keyType "int32" eq $keyType "int64"}}
+			valueStr, _ := strconv.ParseInt(k, 10, 64)
+			e.EncodeToken(xml.CharData(valueStr))
+			{{- else if or eq $keyType "uint8" eq $keyType "uint" eq $keyType "uint16" eq $keyType "uint32" eq $keyType "uint64"}}
+			valueStr, _ := strconv.ParseUint(k, 10, 64)
+			e.EncodeToken(xml.CharData(valueStr))
+			{{- else if or eq $keyType "float32" eq $keyType "float64"}}
+			valueStr, _ := strconv.ParseFloat(k, 64)
+			e.EncodeToken(xml.CharData(valueStr))
+			{{- else if or eq $keyType "bool"}}
+			valueStr, _ := strconv.ParseBool(k)
+			e.EncodeToken(xml.CharData(valueStr))
+			{{- end }}
+		{{- end }}
+		e.EncodeToken(xml.EndElement{t.Name})
+		elemData := elem.Edit("")
+		if strings.Contains(elemData, "<{{$structName}}_{{$field.Name}}>") {
+			elemData = strings.Split(strings.Split(elemData, "<{{$structName}}_{{$field.Name}}>")[1], "</{{$structName}}_{{$field.Name}}>")[0]
+		}
+		//fmt.Println("elemData:", elemData)
+		e.EncodeToken(xml.CharData(elemData))
+	{{- end }}
+	}	
+	e.EncodeToken(xml.EndElement{start.Name})
+	return nil
+}
+	{{- end }}
+{{ end }}
 type {{ .StructName }} struct {
 {{- range $idx, $field := .Fields }}
 	{{- if $field.IsScalarField }}
 	{{ $field.Name }}	*{{ $field.Type }}	` + "`" + `{{ $field.Tags }}` + "`" + `
 	{{- else }}
+		{{- if ne (mapType $field.Type) "" }}
+	{{ $field.Name }}	{{$structName}}_{{$field.Name}}Map	` + "`" + `{{ $field.Tags }}` + "`" + `
+		{{- else }}
 	{{ $field.Name }}	 {{ $field.Type }}	` + "`" + `{{ $field.Tags }}` + "`" + `
+		{{- end }}
 	{{- end }}
 {{- end }}
 }
@@ -415,55 +502,47 @@ func (d *{{.StructName}}) Edit(ed string) string {
 		xml, err := xml.MarshalIndent(d, "", "")
 		if err == nil {
 			ed = string(xml)
+		} else {
+			fmt.Println("Edit xml marshal error : ",err)
 		}
 	}
 	x := ed
 	{{- range $idx, $field := .Fields }}
 		{{- if (contains (ftype $field.Type) "E_") }}
-			fmt.Println("x:", x)
+			//fmt.Println("x:", x)
 			{
 				posListBefore := strings.Split(string(x), "{{ getXmlStartTag $field.Tags }}")
-				fmt.Println("postlistbefore:", posListBefore)
+				//fmt.Println("postlistbefore:", posListBefore)
 				if len(posListBefore)!=2{
 					return x
 				}
 			posListAfter := strings.Split(posListBefore[1], "{{ getXmlEndTag $field.Tags }}")
-			fmt.Println("poslistafter:", posListAfter)
+			//fmt.Println("poslistafter:", posListAfter)
 			n, _ := strconv.Atoi(posListAfter[0])
 			if len(posListAfter)<1{
 				return x
 			}
-			fmt.Println(" polistAfter[0]:", posListAfter[0], " n:", n)
+			//fmt.Println(" polistAfter[0]:", posListAfter[0], " n:", n)
 			posListAfter[0] = ΛEnum["{{$field.Type}}"][int64(n)].Name
-			fmt.Println("after subsituting poslistafter:", posListAfter)
+			//fmt.Println("after subsituting poslistafter:", posListAfter)
 			x = posListBefore[0] + "{{ getXmlStartTag $field.Tags }}" + posListAfter[0] + "{{ getXmlEndTag $field.Tags }}" + posListAfter[1]
 			}
 		{{- else }}
 		{{- if eq $field.Name  "XMLName" }}
-			fmt.Println("xmlName skip xmlmarshal")
+			//fmt.Println("xmlName skip xmlmarshal")
 		{{- else }}
-		{{- if $field.IsScalarField }}
-			fmt.Println("scalar type skip marshal")
+		{{- if or (eq $field.Type "YANGEmpty") $field.IsScalarField }}
+			//fmt.Println("scalar type skip marshal")
 		{{- else }}
 		{{- if ne (mapType $field.Type) "" }}
-			fmt.Println("map type")
-			/*
-			for _,v := range d.{{$field.Name}} 
-			fmt.Println("type  {{mapType $field.Type}}- marshal")
-			x = (&{{(mapType  $field.Type) }}{}).Edit(x)
-			*/
+			//fmt.Println("map type")
 		{{- else }}
 		{{- if isArray $field.Type }}
 			{{- if ne (arrType $field.Type) "" }}
-				fmt.Println("array type")
-				/*
-				for _,v := range d.{{$field.Name}} 
-				fmt.Println("type  {{arrType $field.Type}}- marshal")
-				x = (&{{(arrType  $field.Type) }}{}).Edit(x)
-				*/
+				//fmt.Println("array type")
 			{{- end }}
 		{{- else }}
-		fmt.Println("type  {{ftype $field.Type}}- marshal")
+		//fmt.Println("type  {{ftype $field.Type}}- marshal")
 		x = (&{{(ftype  $field.Type) }}{}).Edit(x)
 		{{- end }}
 		{{- end }}
@@ -471,7 +550,7 @@ func (d *{{.StructName}}) Edit(ed string) string {
 		{{- end }}
 		{{- end }}
 	{{- end }}
-	return x
+	return html.UnescapeString(x)
 }
 
 
@@ -1077,6 +1156,25 @@ func (t *{{ .ParentReceiver }}) To_{{ .Name }}(i interface{}) ({{ .Name }}, erro
 						return s
 					}
 				}
+			}
+			return ""
+		},
+		"mapKeyType": func(s string) string {
+			if strings.Contains(s, "map") {
+				l := strings.Split(strings.Split(s, "map[")[1], "]")
+				k := l[0]
+				//fmt.Println("returning key:", k, " for type :", s)
+				return k
+			}
+			return ""
+		},
+		"mapValueType": func(s string) string {
+			if strings.Contains(s, "map") {
+				l := strings.Split(strings.Split(s, "map[")[1], "]")
+				v := l[1]
+				v = strings.Replace(v, "*", "", -1)
+				//fmt.Println("returning  val:", v, " for type :", s)
+				return v
 			}
 			return ""
 		},
