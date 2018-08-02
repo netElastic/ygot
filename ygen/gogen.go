@@ -492,7 +492,6 @@ func (d *{{.StructName}}) Get() string {
 {{- range $idx, $field := .Fields }}
     {{- if eq $field.Name "XMLName" }}
 		x = {{getXmlGetTag $field.Tags}}
-		fmt.Println("get str:",x)
 	{{- end }}
 {{- end }}
 	return x
