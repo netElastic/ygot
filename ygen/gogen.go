@@ -435,13 +435,13 @@ func (s {{$structName}}_{{$field.Name}}Map)  MarshalXML(e *xml.Encoder, start xm
 			{{- if eq $keyType "string" }}
 			e.EncodeToken(xml.CharData(k))
 			{{- else if (or (eq $keyType "int8") (eq $keyType "int") (eq $keyType "int16") (eq $keyType "int32") (eq $keyType "int64"))}}
-			valueStr, _ := strconv.ParseInt(k, 10, 64)
+			valueStr := strconv.FormatInt(int64(k), 10)
 			e.EncodeToken(xml.CharData(valueStr))
 			{{- else if (or (eq $keyType "uint8") (eq $keyType "uint") (eq $keyType "uint16") (eq $keyType "uint32") (eq $keyType "uint64"))}}
-			valueStr, _ := strconv.ParseUint(k, 10, 64)
+			valueStr := strconv.FormatUint(uint64(k), 10)
 			e.EncodeToken(xml.CharData(valueStr))
 			{{- else if (or (eq $keyType "float32") (eq $keyType "float64"))}}
-			valueStr, _ := strconv.ParseFloat(k, 64)
+			valueStr :=strconv.FormatFloat(float64(k),'f',2,64)
 			e.EncodeToken(xml.CharData(valueStr))
 			{{- else if eq $keyType "bool"}}
 			valueStr, _ := strconv.ParseBool(k)
